@@ -13,7 +13,7 @@ typedef uint32_t uint;
 enum BufferIndex
 {
     BufferIndexFrameData = 0,
-    BufferIndexVertices = 1,
+    BufferIndexVertexData = 1,
     BufferIndexInstanceData = 2,
 };
 
@@ -32,7 +32,8 @@ struct Vertex
     float3 normal;
 };
 
-struct InstanceData {
+struct InstanceData
+{
     float4x4 model;
     uint meshId;
     uint materialId;

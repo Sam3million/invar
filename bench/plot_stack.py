@@ -25,7 +25,7 @@ axes[-1].set_xlabel("frame")
 
 # Mark the worst 1% of the reference counter on every panel
 wide = df.pivot(index="index", columns="counter", values="value")
-wide["deltaTime"] = wide["deltaTime"].shift(-1)   # deltaTime[k+1] describes frame k
+#wide["deltaTime"] = wide["deltaTime"].shift(-1)   # deltaTime[k+1] describes frame k
 if ref in wide:
     thr = wide[ref].quantile(0.99)
     for f in wide.index[wide[ref] >= thr]:

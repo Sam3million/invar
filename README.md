@@ -41,7 +41,7 @@ Models are not included. Download Sponza from the
 In progress.
 
 ## Third-party
-metal-cpp (Apache-2.0), SDL3 (zlib), meshoptimizer (MIT), cgltf (MIT), stb_image (public domain / MIT).
+metal-cpp (Apache-2.0), SDL3 (zlib), meshoptimizer (MIT), cgltf (MIT), stb_image and stb_image_write (public domain / MIT), argparse (MIT)
 
 ## License
 MIT. See `LICENSE`.

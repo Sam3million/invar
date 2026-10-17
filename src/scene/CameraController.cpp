@@ -1,6 +1,7 @@
 #include "CameraController.h"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 static constexpr float kMaxPitch = 1.55f;
 static constexpr float kMinDistance = 0.05f;
@@ -48,7 +49,7 @@ void CameraController::update(Camera& cam, const CameraInput& input, float dt, f
     }
     // Axes before any rotation this frame (used by pan, which should follow the current view)
     const float3 right = cam.right();
-    const float3 up    = cam.up();
+    const float3 up = cam.up();
 
     // Scroll dollies, except while flying, where it changes speed instead
     if (mode != Mode::Fly && input.scroll != 0.0f)

@@ -4,7 +4,10 @@
 #include <string>
 #include <vector>
 
-struct MeshInfo { uint32_t firstIndex, indexCount; int32_t baseVertex; };
+struct MeshInfo
+{
+    uint32_t firstIndex, indexCount; int32_t baseVertex;
+};
 
 struct Scene {
     std::vector<Vertex>       vertices;    // every mesh concatenated

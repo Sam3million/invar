@@ -28,6 +28,14 @@ add_executable(${APP_NAME} ${ENGINE_SRCS}
         src/scene/CameraController.cpp
         src/PerformanceCounter.h
         src/PerformanceCounter.cpp
+        src/App.cpp
+        src/App.h
+        src/gfx/Renderer.cpp
+        src/gfx/Renderer.h
+        src/gfx/MetalContext.cpp
+        src/gfx/MetalContext.h
+        src/Config.h
+        src/stb_imp.cpp
 )
 
 target_include_directories(${APP_NAME} PRIVATE
@@ -35,7 +43,8 @@ target_include_directories(${APP_NAME} PRIVATE
     shaders                        # for shared_types.h
     third_party/metal-cpp
     third_party/cgltf
-    third_party/stb)
+    third_party/stb
+    third_party/argparse)
 
 target_link_libraries(${APP_NAME} PRIVATE
     SDL3::SDL3
@@ -47,7 +56,9 @@ target_link_libraries(${APP_NAME} PRIVATE
 # Tell the program where things are during development.
 target_compile_definitions(${APP_NAME} PRIVATE
     SHADER_LIB_PATH="${CMAKE_BINARY_DIR}/shaders.metallib"
-    ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
+    ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/"
+    BENCH_OUT_DIR="${CMAKE_SOURCE_DIR}/bench/results")
+
 
 # ---- Shader compilation ----
 file(GLOB SHADER_SRCS CONFIGURE_DEPENDS shaders/*.metal)

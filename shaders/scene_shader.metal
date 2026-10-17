@@ -13,7 +13,7 @@ vertex Vertex_Out vs_main(
     uint iid [[instance_id]],
     uint baseInstance [[base_instance]],
     constant FrameData* frameDataBuffer [[buffer(BufferIndexFrameData)]],
-    const device Vertex* vertexBuffer [[buffer(BufferIndexVertices)]],
+    const device Vertex* vertexBuffer [[buffer(BufferIndexVertexData)]],
     const device InstanceData* instanceBuffer [[buffer(BufferIndexInstanceData)]])
 {
     Vertex_Out o;

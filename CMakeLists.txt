@@ -6,41 +6,39 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---- Third-party libraries built from source ----
-# Build SDL as a static lib so there's no .dylib to ship next to the exe.
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON  CACHE BOOL "" FORCE)
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(third_party/meshoptimizer EXCLUDE_FROM_ALL)
 
-# ---- Your executable ----
 file(GLOB_RECURSE ENGINE_SRCS CONFIGURE_DEPENDS src/*.cpp)
 add_executable(${APP_NAME} ${ENGINE_SRCS}
-        src/metal_imp.cpp
-        src/main.cpp
-        shaders/shared_types.h
-        src/shared_types_assertions.cpp
-        src/Camera.h
-        src/Transform.h
-        src/scene/Scene.h
-        src/scene/GltfLoader.cpp
-        src/scene/CameraController.h
-        src/scene/CameraController.cpp
-        src/PerformanceCounter.h
-        src/PerformanceCounter.cpp
-        src/App.cpp
-        src/App.h
-        src/gfx/Renderer.cpp
-        src/gfx/Renderer.h
-        src/gfx/MetalContext.cpp
-        src/gfx/MetalContext.h
-        src/Config.h
-        src/stb_imp.cpp
+    src/metal_imp.cpp
+    src/main.cpp
+    shaders/shared_types.h
+    src/shared_types_assertions.cpp
+    src/Camera.h
+    src/Transform.h
+    src/scene/Scene.h
+    src/scene/GltfLoader.cpp
+    src/scene/CameraController.h
+    src/scene/CameraController.cpp
+    src/PerformanceCounter.h
+    src/PerformanceCounter.cpp
+    src/App.cpp
+    src/App.h
+    src/gfx/Renderer.cpp
+    src/gfx/Renderer.h
+    src/gfx/MetalContext.cpp
+    src/gfx/MetalContext.h
+    src/Config.h
+    src/stb_imp.cpp
 )
 
 target_include_directories(${APP_NAME} PRIVATE
     src
-    shaders                        # for shared_types.h
+    shaders
     third_party/metal-cpp
     third_party/cgltf
     third_party/stb
@@ -53,7 +51,6 @@ target_link_libraries(${APP_NAME} PRIVATE
     "-framework Foundation"
     "-framework QuartzCore")
 
-# Tell the program where things are during development.
 target_compile_definitions(${APP_NAME} PRIVATE
     SHADER_LIB_PATH="${CMAKE_BINARY_DIR}/shaders.metallib"
     ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/"

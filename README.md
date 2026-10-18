@@ -3,7 +3,7 @@
 A from-scratch GPU-driven renderer in C++ and Metal (metal-cpp), built to explore
 mesh shaders, meshlet culling and GPU performance measurement on Apple silicon.
 
-![screenshot](docs/sponza.png)
+![screenshot](bench/named_reports/sponza_textured/last_frame.png)
 
 ## Status
 - [x] SDL3 window + CAMetalLayer, frames in flight, depth buffer (reversed-Z)
@@ -11,7 +11,7 @@ mesh shaders, meshlet culling and GPU performance measurement on Apple silicon.
 - [ ] Meshlet build + mesh shader path
 - [ ] Meshlet frustum/cone culling with CPU reference validation
 - [ ] Hi-Z occlusion culling
-- [ ] Textures / materials
+- [x] Textures / materials
 
 ## Requirements
 - macOS with an Apple silicon GPU (mesh shaders need Metal 3-class hardware)

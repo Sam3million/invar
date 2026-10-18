@@ -5,7 +5,9 @@
 
 #include "stb_image_write.h"
 
-App::App(const Config& runConfig) : config(runConfig), perf(runConfig.bench ? runConfig.frames : 2048)
+App::App(const Config& runConfig) :
+    config(runConfig), renderer(ctx, runConfig.framesInFlight), inFlight(runConfig.framesInFlight),
+    gpuSlots(runConfig.framesInFlight), perf(runConfig.bench ? runConfig.frames : 2048)
 {
     if (!config.bench)
     {
@@ -68,9 +70,9 @@ App::~App()
 
 void App::run()
 {
-    std::cout << "numDraws:" << renderer.drawCount() << "\n";
     uint64_t last = SDL_GetPerformanceCounter();
     uint64_t freq = SDL_GetPerformanceFrequency();
+    uint64_t lastTitleTick = last;
     while (running)
     {
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -92,11 +94,24 @@ void App::run()
             frameSuccessful = interactiveFrame();
         }
 
+        uint64_t encodeEndTime = SDL_GetPerformanceCounter();
         if (frameSuccessful && frameIndex >= warmupFrames())
         {
-            perf.deltaTime.add(dt * 1000.0f);
-            perf.iteration.add(static_cast<float>(static_cast<double>(SDL_GetPerformanceCounter() - now) * 1000.0 / static_cast<double>(freq)));
+            perf.iteration.add(static_cast<float>(static_cast<double>(encodeEndTime - now) * 1000.0 / static_cast<double>(freq)));
         }
+
+        if (!config.bench && encodeEndTime - lastTitleTick > freq / 4)
+        {
+            float meanCpuMs = perf.iteration.mean();
+            lastTitleTick = encodeEndTime;
+            std::string titleWithPerf = std::format("Invar - CPU Time: {:.2f} ms ({} FPS), GPU Time {:.2f} ms",
+                meanCpuMs, static_cast<int>(1000.0f / meanCpuMs), perf.gpu.mean());
+            if (!SDL_SetWindowTitle(window, titleWithPerf.c_str()))
+            {
+                SDL_Log("SDL SetWindowTitle failed: %s", SDL_GetError());
+            }
+        }
+
         if (config.bench && frameIndex >= warmupFrames() + config.frames)
         {
             running = false;
@@ -201,9 +216,9 @@ bool App::interactiveFrame()
 
 void App::submitFrame(MTL::Texture* color, const CA::MetalDrawable* drawable)
 {
-    const uint32_t slot = frameIndex % kFramesInFlight;
+    const uint32_t slot = frameIndex % config.framesInFlight;
 
-    if (frameIndex >= warmupFrames() + kFramesInFlight) perf.gpu.add(gpuSlots[frameIndex % kFramesInFlight]);
+    if (frameIndex >= warmupFrames() + config.framesInFlight) perf.gpu.add(gpuSlots[slot]);
 
     MTL::CommandBuffer* cmd = ctx.commandQueue->commandBuffer();
     cmd->setLabel(NS::String::string("Invar Command Buffer", NS::UTF8StringEncoding));
@@ -215,7 +230,7 @@ void App::submitFrame(MTL::Texture* color, const CA::MetalDrawable* drawable)
 
     const uint64_t t0 = SDL_GetPerformanceCounter();
 
-    renderer.encode(cmd, color, makeFrameData(), frameIndex % kFramesInFlight);
+    renderer.encode(cmd, color, makeFrameData(), slot);
     if (drawable) cmd->presentDrawable(drawable);
     cmd->commit();
 
@@ -242,8 +257,8 @@ FrameData App::makeFrameData() const
 void App::waitIdle()
 {
     // this just gets rid of any processing frames
-    for (uint32_t i = 0; i < kFramesInFlight; i++) inFlight.acquire();
-    for (uint32_t i = 0; i < kFramesInFlight; i++) inFlight.release();
+    for (uint32_t i = 0; i < config.framesInFlight; i++) inFlight.acquire();
+    for (uint32_t i = 0; i < config.framesInFlight; i++) inFlight.release();
 }
 
 bool App::benchmarkFrame()
@@ -261,10 +276,11 @@ uint64_t App::warmupFrames() const
 void App::writeResults() const
 {
     const std::string path = std::string(BENCH_OUT_DIR) + "/perf.csv";
-    perf.gpu.writeCsv(path.c_str(), "classic");
-    perf.encode.writeCsv(path.c_str(), "classic");
-    perf.iteration.writeCsv(path.c_str(), "classic");
-    perf.deltaTime.writeCsv(path.c_str(), "classic");
+    const auto pathStr = path.c_str();
+    const auto labelStr = config.label.c_str();
+    perf.gpu.writeCsv(pathStr, labelStr);
+    perf.encode.writeCsv(pathStr, labelStr);
+    perf.iteration.writeCsv(pathStr, labelStr);
 }
 
 void App::saveTexturePng(const MTL::Texture* tex, const std::string& path) const

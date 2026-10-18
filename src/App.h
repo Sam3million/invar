@@ -36,25 +36,24 @@ private:
     SDL_MetalView view;
     CA::MetalLayer* layer;
     MTL::Texture* benchmarkTexture = nullptr;
-    Renderer renderer{ctx};
+    Renderer renderer;
     Scene scene;
     Camera camera;
     CameraController controller;
 
-    std::counting_semaphore<kFramesInFlight> inFlight{kFramesInFlight};
+    std::counting_semaphore<kMaxFramesInFlight> inFlight;
     uint64_t frameIndex = 0;
     bool running = true;
 
     const Config& config;
-    float gpuSlots[kFramesInFlight] = {};
+    std::vector<float>gpuSlots;
     struct PerfSet
     {
-        PerformanceCounter gpu, encode, iteration, deltaTime;
+        PerformanceCounter gpu, encode, iteration;
         explicit PerfSet(const int frameCount) :
             gpu("gpu_frame", "ms", frameCount),
             encode("encode", "ms", frameCount),
-            iteration("iteration", "ms", frameCount),
-            deltaTime("deltaTime", "ms", frameCount) {}
+            iteration("iteration", "ms", frameCount) {}
     };
     PerfSet perf;
 };

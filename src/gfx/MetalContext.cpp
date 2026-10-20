@@ -21,3 +21,11 @@ MetalContext::~MetalContext()
     commandQueue->release();
     device->release();
 }
+
+/// Creates a buffer from existing data
+MTL::Buffer* MetalContext::createBuffer(const void* data, size_t length, const char* name) const
+{
+    auto* buffer = device->newBuffer(data, length, MTL::ResourceStorageModeShared);
+    buffer->setLabel(NS::String::string(name, NS::UTF8StringEncoding));
+    return buffer;
+}

@@ -1,29 +1,17 @@
 #include "Renderer.h"
 
 #include <iostream>
+#include "ClassicPath.h"
+#include "MeshletPath.h"
 #include "shared_types.h"
 
-Renderer::Renderer(MetalContext& ctx, const int framesInFlight) :
-    m_ctx(ctx), m_framesInFlight(framesInFlight), m_frameBuffers(framesInFlight)
+Renderer::Renderer(MetalContext& ctx, const RenderMode renderMode, const int framesInFlight) :
+    m_ctx(ctx),
+    m_framesInFlight(framesInFlight),
+    m_frameBuffers(framesInFlight),
+    m_renderMode(renderMode),
+    m_renderPaths({std::make_unique<ClassicPath>(ctx), std::make_unique<MeshletPath>(ctx)})
 {
-    MTL::Function* vs = ctx.lib->newFunction(NS::String::string("vs_main", NS::UTF8StringEncoding));
-    MTL::Function* fs = ctx.lib->newFunction(NS::String::string("fs_main", NS::UTF8StringEncoding));
-
-    // Create render pipeline
-    MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
-    desc->setVertexFunction(vs);
-    desc->setFragmentFunction(fs);
-    desc->colorAttachments()->object(0)->setPixelFormat(MetalContext::kColorFormat);
-    desc->setDepthAttachmentPixelFormat(MetalContext::kDepthFormat);
-
-    NS::Error* err = nullptr;
-    m_pso = ctx.device->newRenderPipelineState(desc, &err);
-    if (!m_pso)
-    {
-        std::cerr << "PSO Creation Failed: " << err->localizedDescription()->utf8String() << "\n";
-    }
-    desc->release();
-
     MTL::DepthStencilDescriptor* depthStencilDescriptor = MTL::DepthStencilDescriptor::alloc()->init();
     depthStencilDescriptor->setDepthCompareFunction(MTL::CompareFunctionGreater);
     depthStencilDescriptor->setDepthWriteEnabled(true);
@@ -52,14 +40,11 @@ Renderer::Renderer(MetalContext& ctx, const int framesInFlight) :
     {
         m_frameBuffers[i] = ctx.device->newBuffer(sizeof(FrameData), MTL::ResourceStorageModeShared);
     }
-
-    vs->release();
-    fs->release();
 }
 
 Renderer::~Renderer()
 {
-    m_pso->release();
+    //m_pso->release();
     m_depthState->release();
     m_samplerState->release();
     m_depthTexture->release();
@@ -74,33 +59,17 @@ Renderer::~Renderer()
     }
 }
 
-/// Creates a buffer from existing data
-MTL::Buffer* Renderer::createBuffer(const void* data, size_t length, const char* name) const
-{
-    auto* buffer = m_ctx.device->newBuffer(data, length, MTL::ResourceStorageModeShared);
-    buffer->setLabel(NS::String::string(name, NS::UTF8StringEncoding));
-    return buffer;
-}
-
 void Renderer::setScene(const Scene& scene)
 {
     if (m_vertexBuffer) m_vertexBuffer->release();
     if (m_indexBuffer) m_indexBuffer->release();
     if (m_instanceBuffer) m_instanceBuffer->release();
     if (m_materialBuffer) m_materialBuffer->release();
-    m_draws.resize(scene.instances.size());
 
-    m_vertexBuffer = createBuffer(scene.vertices.data(), scene.vertices.size() * sizeof(Vertex), "Vertex Buffer");
-    m_indexBuffer = createBuffer(scene.indices.data(), scene.indices.size() * sizeof(uint32_t), "Index Buffer");
-    m_instanceBuffer = createBuffer(scene.instances.data(), scene.instances.size() * sizeof(InstanceData), "Instance Buffer");
-    m_materialBuffer = createBuffer(scene.materials.data(), scene.materials.size() * sizeof(Material), "Material Buffer");
-
-    for (uint32_t i = 0; i < scene.instances.size(); i++)
-    {
-        const MeshInfo& m = scene.meshes[scene.instances[i].meshId];
-        m_draws[i] = { m.indexCount, m.firstIndex, m.baseVertex, i,
-            (scene.materials[m.materialId].flags & MATERIAL_FLAG_DOUBLE_SIDED) != 0 };
-    }
+    m_vertexBuffer = m_ctx.createBuffer(scene.vertices.data(), scene.vertices.size() * sizeof(Vertex), "Vertex Buffer");
+    m_indexBuffer = m_ctx.createBuffer(scene.indices.data(), scene.indices.size() * sizeof(uint32_t), "Index Buffer");
+    m_instanceBuffer = m_ctx.createBuffer(scene.instances.data(), scene.instances.size() * sizeof(InstanceData), "Instance Buffer");
+    m_materialBuffer = m_ctx.createBuffer(scene.materials.data(), scene.materials.size() * sizeof(Material), "Material Buffer");
 
     // Create the metal texture objects
     for (const Image& image : scene.images)
@@ -132,6 +101,19 @@ void Renderer::setScene(const Scene& scene)
     {
         ptr[i] = m_textures[i]->gpuResourceID();
     }
+
+    m_gpu =
+    {
+        .samplerState = m_samplerState,
+        .vertexBuffer = m_vertexBuffer,
+        .indexBuffer = m_indexBuffer,
+        .instanceBuffer = m_instanceBuffer,
+        .materialBuffer = m_materialBuffer,
+        .globalTextureBuffer = m_globalTextureBuffer,
+        .textures = m_textures
+    };
+
+    renderPath().setScene(scene, m_gpu);
 }
 
 void Renderer::encode(MTL::CommandBuffer* cmd, MTL::Texture* color, const FrameData& frame, uint32_t frameSlot)
@@ -139,6 +121,10 @@ void Renderer::encode(MTL::CommandBuffer* cmd, MTL::Texture* color, const FrameD
     ensureDepth(static_cast<uint32_t>(color->width()), static_cast<uint32_t>(color->height()));
 
     std::memcpy(m_frameBuffers[frameSlot]->contents(), &frame, sizeof(FrameData));
+    const FrameBindings frameBindings { .frameData = m_frameBuffers[frameSlot], .frameSlot = frameSlot };
+
+    // The render path might have prepasses (eg compute culling)
+    renderPath().prepare(cmd, m_gpu, frameBindings);
 
     MTL::RenderPassDescriptor* rp = MTL::RenderPassDescriptor::renderPassDescriptor();
     auto* ca = rp->colorAttachments()->object(0);
@@ -155,39 +141,19 @@ void Renderer::encode(MTL::CommandBuffer* cmd, MTL::Texture* color, const FrameD
 
     MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(rp);
     enc->setLabel(NS::String::string("Invar Command Encoder", NS::UTF8StringEncoding));
-    enc->setRenderPipelineState(m_pso);
     enc->setDepthStencilState(m_depthState);
-    //enc->setCullMode(MTL::CullModeBack);
-
-    // Bind buffers
-    enc->setVertexBuffer(m_frameBuffers[frameSlot], 0, BufferIndexFrameData);
-    enc->setVertexBuffer(m_vertexBuffer, 0, BufferIndexVertexData);
-    enc->setVertexBuffer(m_instanceBuffer, 0, BufferIndexInstanceData);
 
     enc->setFragmentBuffer(m_materialBuffer, 0, BufferIndexMaterialData);
     enc->setFragmentBuffer(m_globalTextureBuffer, 0, BufferIndexTextureData);
     enc->setFragmentSamplerState(m_samplerState, BufferIndexSamplerState);
-
     // Make the textures resident for bindless
     for (const auto* texture : m_textures)
     {
         enc->useResource(texture, MTL::ResourceUsageRead, MTL::RenderStageFragment);
     }
 
-    for (uint32_t i = 0; i < m_draws.size(); i++)
-    {
-        const DrawItem draw = m_draws[i];
-        enc->setCullMode(draw.doubleSided ? MTL::CullModeNone : MTL::CullModeBack);
-        enc->drawIndexedPrimitives(
-            MTL::PrimitiveTypeTriangle,
-            draw.indexCount,
-            MTL::IndexTypeUInt32,
-            m_indexBuffer,
-            draw.firstIndex * sizeof(uint32_t),
-            1,
-            draw.baseVertex,
-            i);
-    }
+    // Encode main pass
+    renderPath().encode(enc, m_gpu, frameBindings);
 
     enc->endEncoding();
 }
@@ -202,9 +168,4 @@ void Renderer::ensureDepth(uint32_t w, uint32_t h)
     depthDesc->setUsage(MTL::TextureUsageRenderTarget);
     depthDesc->setStorageMode(MTL::StorageModePrivate);
     m_depthTexture = m_ctx.device->newTexture(depthDesc);
-}
-
-int Renderer::drawCount() const
-{
-    return m_draws.size();
 }

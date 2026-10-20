@@ -10,7 +10,7 @@
 #include <vector>
 #include "stb_image.h"
 
-static constexpr bool kLoaderDiagnostics = false;
+static constexpr bool kLoaderDiagnostics = true;
 
 // glTF is right-handed; our world is left-handed (+Z forward). Mirror Z.
 // For a node matrix M (column-major, 16 floats): M' = S*M*S with S = diag(1,1,-1).
@@ -20,6 +20,7 @@ static void mirrorZ(float m[16])
         for (int r = 0; r < 4; r++)
             if ((r == 2) != (c == 2)) m[c * 4 + r] = -m[c * 4 + r];
 }
+
 static float det3(const float m[16])
 {
     const float *c0 = m, *c1 = m + 4, *c2 = m + 8;
@@ -88,7 +89,8 @@ bool loadGltf(const std::string& path, Scene& out)
         return idx;
     };
 
-    out.materials.push_back({ {1, 1, 1, 1}, -1, 0, 0.5f, 0 });   // index 0 = default
+    // index 0 = default
+    out.materials.push_back({ {1, 1, 1, 1}, -1, 0, 0.5f, 0 });
     for (size_t i = 0; i < data->materials_count; i++)
     {
         const cgltf_material& gm = data->materials[i];
@@ -164,7 +166,8 @@ bool loadGltf(const std::string& path, Scene& out)
             info.materialId = prim.material
                 ? static_cast<uint32_t>(cgltf_material_index(data, prim.material) + 1)
                 : 0;
-
+            info.vertexCount = pos->count;
+            
             const size_t base = out.vertices.size();
             out.vertices.resize(base + pos->count);
             for (size_t v = 0; v < pos->count; v++)

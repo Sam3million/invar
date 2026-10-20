@@ -14,6 +14,9 @@ typedef uint32_t uint;
 #define MATERIAL_FLAG_DOUBLE_SIDED 2u
 #define MAX_TEXTURES 1024
 
+#define MESHLET_MAX_VERTS 64
+#define MESHLET_MAX_TRIS  124
+
 enum BufferIndex
 {
     BufferIndexFrameData = 0,
@@ -21,7 +24,11 @@ enum BufferIndex
     BufferIndexInstanceData = 2,
     BufferIndexMaterialData = 3,
     BufferIndexTextureData = 4,
-    BufferIndexSamplerState = 5
+    BufferIndexSamplerState = 5,
+    BufferIndexMeshlets = 6,
+    BufferIndexMeshletVerts = 7,
+    BufferIndexMeshletTris = 8,
+    BufferIndexWork = 9
 };
 
 struct FrameData
@@ -58,3 +65,15 @@ struct Material
     uint _pad;
 };
 
+struct GPUMeshlet
+{
+    uint vertexOffset, triangleOffset, vertexCount, triangleCount;
+    float4 sphere;
+    float4 cone;
+};
+
+struct MeshletWork
+{
+    uint instanceId;
+    uint meshletId;
+};

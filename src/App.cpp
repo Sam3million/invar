@@ -4,10 +4,12 @@
 #include <iostream>
 
 #include "stb_image_write.h"
+#include "scene/SceneOptimize.h"
 
 App::App(const Config& runConfig) :
-    config(runConfig), renderer(ctx, runConfig.framesInFlight), inFlight(runConfig.framesInFlight),
-    gpuSlots(runConfig.framesInFlight), perf(runConfig.bench ? runConfig.frames : 2048)
+    renderer(ctx, runConfig.mode == "meshlet" ? RenderMode::Meshlet : RenderMode::Classic, runConfig.framesInFlight),
+    inFlight(runConfig.framesInFlight), config(runConfig), gpuSlots(runConfig.framesInFlight),
+    perf(runConfig.bench ? runConfig.frames : 2048)
 {
     if (!config.bench)
     {
@@ -40,16 +42,22 @@ App::App(const Config& runConfig) :
     }
 
     loadGltf(std::string(ASSET_DIR) + config.scene, scene);
+    optimizeIndices(scene);
     renderer.setScene(scene);
 
     camera =
     {
         .transform = Transform
         {
-            .position = float3 {9.85929, 1.04801, 0.109808},
-            .rotation = quatf {-0.0219285, -0.693247, -0.0211121, 0.720057},
+            // For sponza:
+            /*.position = float3 {9.85929, 1.04801, 0.109808},
+            .rotation = quatf {-0.0219285, -0.693247, -0.0211121, 0.720057},*/
+            // For dragon:
+            .position = float3 {-0.0264881, 0.148852, -0.174194},
+            .rotation = quatf {0.0905186, 0.0595404, -0.00542151, 0.994099},
             .scale = float3 {1, 1, 1}
-        }
+        },
+        .nearZ = 0.02f
     };
     if (config.bench)
     {
@@ -142,7 +150,7 @@ void App::pollEvents(CameraInput& input)
         {
             if (e.key.key == SDLK_F)
             {
-                controller.frame(camera, 0, 10);
+                controller.frame(camera, scene.instances[0].model.columns[0].xyz, 1);
             }
             if (e.key.key == SDLK_P)
             {
@@ -277,7 +285,7 @@ void App::writeResults() const
 {
     const std::string path = std::string(BENCH_OUT_DIR) + "/perf.csv";
     const auto pathStr = path.c_str();
-    const auto labelStr = config.label.c_str();
+    const auto labelStr = config.mode.c_str();
     perf.gpu.writeCsv(pathStr, labelStr);
     perf.encode.writeCsv(pathStr, labelStr);
     perf.iteration.writeCsv(pathStr, labelStr);

@@ -10,6 +10,7 @@ struct MeshInfo
     uint32_t indexCount;
     int32_t baseVertex;
     uint32_t materialId = 0;
+    uint32_t vertexCount;
 };
 
 struct Image

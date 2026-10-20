@@ -120,7 +120,7 @@ def fig_comparison(stats, order, colors, unit, base, args, out):
     ax.set_xlim(0, xmax * 1.5)
     ax.grid(False)
     ax.grid(axis="x")
-    ax.set_xlabel(f"{args.counter} ({unit}), lower is better. Bars: median of repeats; whiskers: min–max across repeats")
+    ax.set_xlabel(f"{"Frame Time" if args.counter == "iteration" else args.counter} ({unit}), lower is better. Bars: median of repeats; whiskers: min–max across repeats")
     heading(ax, args.title or f"{args.counter} per frame", args.subtitle)
     footer(fig, args.footer)
     save(fig, out, "comparison", args.dpi)

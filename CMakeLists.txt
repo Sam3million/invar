@@ -34,6 +34,17 @@ add_executable(${APP_NAME} ${ENGINE_SRCS}
     src/gfx/MetalContext.h
     src/Config.h
     src/stb_imp.cpp
+        src/gfx/RenderPath.h
+        src/gfx/ClassicPath.cpp
+        src/gfx/ClassicPath.h
+        src/gfx/MeshletPath.cpp
+        src/gfx/MeshletPath.h
+        src/scene/SceneOptimize.cpp
+        src/scene/SceneOptimize.h
+        src/scene/MeshletData.cpp
+        src/scene/MeshletData.h
+        src/gfx/MeshletCullingPath.cpp
+        src/gfx/MeshletCullingPath.h
 )
 
 target_include_directories(${APP_NAME} PRIVATE

@@ -251,7 +251,16 @@ def main():
     if d.empty:
         sys.exit(f"No samples for counter '{args.counter}'. Available: {sorted(set(df['counter']))}")
     unit = d["unit"].iloc[0]
-    colors = {r: PALETTE[i % len(PALETTE)] for i, r in enumerate(order)}
+
+    # 1. Generate the color list: PALETTE[0], PALETTE[1] (3x), PALETTE[2] (3x), etc.
+    color_list = [PALETTE[0]]
+    for i in range(1, len(PALETTE)):
+        color_list.extend([PALETTE[i]] * 3)
+
+    # 2. Convert it into the dictionary format your function expects
+    colors = {r: color_list[i % len(color_list)] for i, r in enumerate(order)}
+    #colors = {r: PALETTE[i % len(PALETTE)] for i, r in enumerate(order)}
+
     stats = compute_stats(d, order)
 
     print(f"Runs: {order}  (baseline: {base})")

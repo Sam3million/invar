@@ -65,7 +65,8 @@ target_link_libraries(${APP_NAME} PRIVATE
 target_compile_definitions(${APP_NAME} PRIVATE
     SHADER_LIB_PATH="${CMAKE_BINARY_DIR}/shaders.metallib"
     ASSET_DIR="${CMAKE_SOURCE_DIR}/assets/"
-    BENCH_OUT_DIR="${CMAKE_SOURCE_DIR}/bench/results")
+    BENCH_OUT_DIR="${CMAKE_SOURCE_DIR}/bench/results"
+    CAPTURE_DIR="${CMAKE_SOURCE_DIR}/bench/captures")
 
 
 # ---- Shader compilation ----

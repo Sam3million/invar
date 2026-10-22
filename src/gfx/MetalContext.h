@@ -17,4 +17,5 @@ public:
     MTL::Device* device = nullptr;
     MTL::CommandQueue* commandQueue = nullptr;
     MTL::Library* lib = nullptr;
+    MTL::FunctionConstantValues* constantValues = nullptr;
 };

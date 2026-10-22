@@ -9,7 +9,7 @@ inline constexpr uint32_t kMaxFramesInFlight = 3;
 
 enum class RenderMode
 {
-    Classic, Meshlet, Count
+    Classic, Meshlet, MeshletCulling, Count
 };
 
 class Renderer
@@ -22,18 +22,16 @@ public:
 
     void setScene(const Scene& scene);
 
-    void encode(MTL::CommandBuffer* cmd, MTL::Texture* color, const FrameData& frame, uint32_t frameSlot);
+    void encode(MTL::CommandBuffer* cmd, const MTL::Texture* color, const FrameData& frame, uint32_t frameSlot);
 
     [[nodiscard]]
-    int drawCount() const;
+    RenderOptions& renderOptions()
+    {
+        return m_options;
+    }
+
 private:
     void ensureDepth(uint32_t width, uint32_t height);
-
-    [[nodiscard]]
-    RenderPath& renderPath() const
-    {
-        return *m_renderPaths[static_cast<size_t>(m_renderMode)];
-    }
 
     MetalContext& m_ctx;
     int m_framesInFlight;
@@ -52,4 +50,12 @@ private:
     SceneDataGpu m_gpu;
     RenderMode m_renderMode = RenderMode::Classic;
     std::array<std::unique_ptr<RenderPath>, static_cast<size_t>(RenderMode::Count)> m_renderPaths;
+
+    RenderOptions m_options;
+
+    [[nodiscard]]
+    RenderPath& renderPath() const
+    {
+        return *m_renderPaths[static_cast<size_t>(m_renderMode)];
+    }
 };

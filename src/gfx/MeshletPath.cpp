@@ -4,20 +4,22 @@
 
 #include "scene/MeshletData.h"
 
-MeshletPath::MeshletPath(MetalContext& ctx) : RenderPath(ctx)
+void MeshletPath::init()
 {
-    MTL::Function* ms = ctx.lib->newFunction(NS::String::string("ms_main", NS::UTF8StringEncoding));
-    MTL::Function* fs = ctx.lib->newFunction(NS::String::string("fs_main", NS::UTF8StringEncoding));
-
+    NS::Error* err = nullptr;
+    MTL::Function* ms = m_ctx.lib->newFunction(NS::String::string("ms_main", NS::UTF8StringEncoding), m_ctx.constantValues, &err);
+    MTL::Function* fs = m_ctx.lib->newFunction(NS::String::string("fs_main", NS::UTF8StringEncoding));
+    
     // Create render pipeline
     MTL::MeshRenderPipelineDescriptor* desc = MTL::MeshRenderPipelineDescriptor::alloc()->init();
     desc->setMeshFunction(ms);
     desc->setFragmentFunction(fs);
     desc->colorAttachments()->object(0)->setPixelFormat(MetalContext::kColorFormat);
     desc->setDepthAttachmentPixelFormat(MetalContext::kDepthFormat);
+    desc->setMaxTotalThreadsPerMeshThreadgroup(MESH_THREADS);
+    desc->setMeshThreadgroupSizeIsMultipleOfThreadExecutionWidth(true);
 
-    NS::Error* err = nullptr;
-    m_pso = ctx.device->newRenderPipelineState(desc, MTL::PipelineOptionNone, nullptr, &err);
+    m_pso = m_ctx.device->newRenderPipelineState(desc, MTL::PipelineOptionNone, nullptr, &err);
     if (!m_pso)
     {
         std::cerr << "PSO Creation Failed: " << err->localizedDescription()->utf8String() << "\n";
@@ -25,6 +27,14 @@ MeshletPath::MeshletPath(MetalContext& ctx) : RenderPath(ctx)
     desc->release();
     ms->release();
     fs->release();
+}
+
+MeshletPath::~MeshletPath()
+{
+    m_meshlets->release();
+    m_meshletVerts->release();
+    m_meshletTris->release();
+    m_work->release();
 }
 
 void MeshletPath::setScene(const Scene& scene, const SceneDataGpu& gpu)
@@ -54,25 +64,29 @@ void MeshletPath::setScene(const Scene& scene, const SceneDataGpu& gpu)
     m_work = m_ctx.createBuffer(work.data(), work.size() * sizeof(MeshletWork), "Meshlet Work");
 }
 
-void MeshletPath::encode(MTL::RenderCommandEncoder* enc, const SceneDataGpu& gpu, const FrameBindings& frame)
+void MeshletPath::bindMeshStage(MTL::RenderCommandEncoder* enc, const SceneDataGpu& gpu, const FrameBindings& frame) const
 {
     enc->setRenderPipelineState(m_pso);
     enc->setMeshBuffer(frame.frameData, 0, BufferIndexFrameData);
-    enc->setMeshBuffer(gpu.vertexBuffer,   0, BufferIndexVertexData);
+    enc->setMeshBuffer(gpu.vertexBuffer, 0, BufferIndexVertexData);
     enc->setMeshBuffer(gpu.instanceBuffer, 0, BufferIndexInstanceData);
-    enc->setMeshBuffer(m_meshlets,  0, BufferIndexMeshlets);
+    enc->setMeshBuffer(m_meshlets, 0, BufferIndexMeshlets);
     enc->setMeshBuffer(m_meshletVerts, 0, BufferIndexMeshletVerts);
-    enc->setMeshBuffer(m_meshletTris,  0, BufferIndexMeshletTris);
+    enc->setMeshBuffer(m_meshletTris, 0, BufferIndexMeshletTris);
+}
 
-    const MTL::Size noObject(1, 1, 1), meshTG(128, 1, 1);
+void MeshletPath::encode(MTL::RenderCommandEncoder* enc, const SceneDataGpu& gpu, const FrameBindings& frame)
+{
+    bindMeshStage(enc, gpu, frame);
+
+    const MTL::Size noObject(1, 1, 1), meshTG(MESH_THREADS, 1, 1);
     enc->setCullMode(MTL::CullModeBack);
-    //enc->setMeshBuffer(m_work, 0, BufferIndexWork);
-    //enc->drawMeshThreadgroups(MTL::Size(m_workSingle, 1, 1), noObject, meshTG);
+    enc->setMeshBuffer(m_work, 0, BufferIndexWork);
+    enc->drawMeshThreadgroups(MTL::Size(m_workSingle, 1, 1), noObject, meshTG);
 
-    //std::cout << "Single vs double: " << m_workSingle << " " << m_workDouble << "\n";
     if (m_workDouble)
     {
-        //enc->setCullMode(MTL::CullModeNone);
+        enc->setCullMode(MTL::CullModeNone);
         enc->setMeshBuffer(m_work, m_workSingle * sizeof(MeshletWork), BufferIndexWork);
         enc->drawMeshThreadgroups(MTL::Size(m_workDouble, 1, 1), noObject, meshTG);
     }

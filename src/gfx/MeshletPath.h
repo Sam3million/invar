@@ -4,7 +4,8 @@
 class MeshletPath : public RenderPath
 {
 public:
-    explicit MeshletPath(MetalContext& ctx);
+    explicit MeshletPath(MetalContext& ctx) : RenderPath(ctx) {}
+    ~MeshletPath() override;
 
     [[nodiscard]]
     const char* name() const override
@@ -12,7 +13,11 @@ public:
         return "meshlet";
     }
 
+    void init() override;
+
     void setScene(const Scene& scene, const SceneDataGpu& gpu) override;
+
+    void bindMeshStage(MTL::RenderCommandEncoder* enc, const SceneDataGpu& gpu, const FrameBindings& frame) const;
 
     void encode(MTL::RenderCommandEncoder* enc, const SceneDataGpu& gpu, const FrameBindings& frame) override;
 

@@ -2,10 +2,10 @@
 
 #include <iostream>
 
-ClassicPath::ClassicPath(MetalContext& ctx) : RenderPath(ctx)
+void ClassicPath::init()
 {
-    MTL::Function* vs = ctx.lib->newFunction(NS::String::string("vs_main", NS::UTF8StringEncoding));
-    MTL::Function* fs = ctx.lib->newFunction(NS::String::string("fs_main", NS::UTF8StringEncoding));
+    MTL::Function* vs = m_ctx.lib->newFunction(NS::String::string("vs_main", NS::UTF8StringEncoding));
+    MTL::Function* fs = m_ctx.lib->newFunction(NS::String::string("fs_main", NS::UTF8StringEncoding));
 
     // Create render pipeline
     MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
@@ -15,7 +15,7 @@ ClassicPath::ClassicPath(MetalContext& ctx) : RenderPath(ctx)
     desc->setDepthAttachmentPixelFormat(MetalContext::kDepthFormat);
 
     NS::Error* err = nullptr;
-    m_pso = ctx.device->newRenderPipelineState(desc, &err);
+    m_pso = m_ctx.device->newRenderPipelineState(desc, &err);
     if (!m_pso)
     {
         std::cerr << "PSO Creation Failed: " << err->localizedDescription()->utf8String() << "\n";
@@ -47,9 +47,8 @@ void ClassicPath::encode(MTL::RenderCommandEncoder* enc, const SceneDataGpu& gpu
     for (uint32_t i = 0; i < m_draws.size(); i++)
     {
         const DrawItem draw = m_draws[i];
-        //std::cout << "Double: " << draw.doubleSided << "\n";
         enc->setCullMode(MTL::CullModeBack);
-        //enc->setCullMode(draw.doubleSided ? MTL::CullModeNone : MTL::CullModeBack);
+        enc->setCullMode(draw.doubleSided ? MTL::CullModeNone : MTL::CullModeBack);
         enc->drawIndexedPrimitives(
             MTL::PrimitiveTypeTriangle,
             draw.indexCount,

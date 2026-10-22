@@ -14,19 +14,35 @@ struct SceneDataGpu
     std::vector<MTL::Texture*> textures;
 };
 
+struct RenderOptions
+{
+    bool freezeCulling = false;
+    bool cullFrustum = true;
+    bool cullCone = true;
+    // only for benchmarks:
+    bool cullStats = true;
+};
+
 struct FrameBindings
 {
     MTL::Buffer* frameData;
     uint32_t frameSlot;
+    const FrameData* frame;
+    const RenderOptions* options;
 };
 
 class RenderPath
 {
 public:
-    virtual ~RenderPath() = default;
+    virtual ~RenderPath()
+    {
+        m_pso->release();
+    }
 
     [[nodiscard]]
     virtual const char* name() const = 0;
+
+    virtual void init() = 0;
 
     virtual void setScene(const Scene& scene, const SceneDataGpu& gpu) = 0;
 

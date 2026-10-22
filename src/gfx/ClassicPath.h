@@ -4,13 +4,15 @@
 class ClassicPath final : public RenderPath
 {
 public:
-    explicit ClassicPath(MetalContext& ctx);
+    explicit ClassicPath(MetalContext& ctx) : RenderPath(ctx) {};
 
     [[nodiscard]]
     const char* name() const override
     {
         return "classic";
     }
+
+    void init() override;
 
     void setScene(const Scene& scene, const SceneDataGpu& gpu) override;
 

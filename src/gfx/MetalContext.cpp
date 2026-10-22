@@ -1,6 +1,7 @@
 #include "MetalContext.h"
 
 #include <iostream>
+#include "shared_types.h"
 
 MetalContext::MetalContext()
 {
@@ -13,6 +14,14 @@ MetalContext::MetalContext()
     {
         std::cerr << "Failed to load shader library: " << err->localizedDescription()->utf8String() << "\n";
     }
+
+    constantValues = MTL::FunctionConstantValues::alloc()->init();
+    const auto verts = static_cast<uint32_t>(MESHLET_MAX_VERTS);
+    const auto tris = static_cast<uint32_t>(MESHLET_MAX_TRIS);
+    constexpr int vertConstantIndex = 0;
+    constexpr int triConstantIndex = 1;
+    constantValues->setConstantValue(&verts, MTL::DataTypeUInt, vertConstantIndex);
+    constantValues->setConstantValue(&tris, MTL::DataTypeUInt, triConstantIndex);
 }
 
 MetalContext::~MetalContext()
@@ -20,6 +29,7 @@ MetalContext::~MetalContext()
     lib->release();
     commandQueue->release();
     device->release();
+    constantValues->release();
 }
 
 /// Creates a buffer from existing data

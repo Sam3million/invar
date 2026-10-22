@@ -2,12 +2,14 @@
 
 #include <filesystem>
 #include <iostream>
-
+#include <ctime>
+#include <Foundation/Foundation.hpp>
+#include <Metal/Metal.hpp>
 #include "stb_image_write.h"
 #include "scene/SceneOptimize.h"
 
 App::App(const Config& runConfig) :
-    renderer(ctx, runConfig.mode == "meshlet" ? RenderMode::Meshlet : RenderMode::Classic, runConfig.framesInFlight),
+    renderer(ctx, parseRenderMode(runConfig.mode), runConfig.framesInFlight),
     inFlight(runConfig.framesInFlight), config(runConfig), gpuSlots(runConfig.framesInFlight),
     perf(runConfig.bench ? runConfig.frames : 2048)
 {
@@ -50,11 +52,11 @@ App::App(const Config& runConfig) :
         .transform = Transform
         {
             // For sponza:
-            /*.position = float3 {9.85929, 1.04801, 0.109808},
-            .rotation = quatf {-0.0219285, -0.693247, -0.0211121, 0.720057},*/
+            .position = config.cameraStartPos,
+            .rotation = config.cameraStartRot,
             // For dragon:
-            .position = float3 {-0.0264881, 0.148852, -0.174194},
-            .rotation = quatf {0.0905186, 0.0595404, -0.00542151, 0.994099},
+            /*.position = float3 {-0.0264881, 0.148852, -0.174194},
+            .rotation = quatf {0.0905186, 0.0595404, -0.00542151, 0.994099},*/
             .scale = float3 {1, 1, 1}
         },
         .nearZ = 0.02f
@@ -148,15 +150,21 @@ void App::pollEvents(CameraInput& input)
         }
         if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat)
         {
-            if (e.key.key == SDLK_F)
+            const auto key = e.key.key;
+            if (key == SDLK_F)
             {
                 controller.frame(camera, scene.instances[0].model.columns[0].xyz, 1);
             }
-            if (e.key.key == SDLK_P)
+            if (key == SDLK_P)
             {
                 std::cout << "Camera Transform: (" << camera.transform.position.x << " " << camera.transform.position.y << " " << camera.transform.position.z << ")\n"
                 << camera.transform.rotation.vector.x << " " << camera.transform.rotation.vector.y << " " << camera.transform.rotation.vector.z << " " << camera.transform.rotation.vector.w << ")\n";
             }
+            if (key == SDLK_C) captureRequested_ = true;
+            auto& options = renderer.renderOptions();
+            if (key == SDLK_L) options.freezeCulling = !options.freezeCulling;
+            if (key == SDLK_1) options.cullFrustum = !options.cullFrustum;
+            if (key == SDLK_2) options.cullCone = !options.cullCone;
         }
         if (e.type == SDL_EVENT_MOUSE_MOTION)
         {
@@ -224,6 +232,16 @@ bool App::interactiveFrame()
 
 void App::submitFrame(MTL::Texture* color, const CA::MetalDrawable* drawable)
 {
+    bool capturing = false;
+    if (captureRequested_)
+    {
+        if (beginCapture())
+        {
+            captureRequested_ = false;
+            capturing = true;
+        }
+    }
+
     const uint32_t slot = frameIndex % config.framesInFlight;
 
     if (frameIndex >= warmupFrames() + config.framesInFlight) perf.gpu.add(gpuSlots[slot]);
@@ -246,6 +264,12 @@ void App::submitFrame(MTL::Texture* color, const CA::MetalDrawable* drawable)
     const uint64_t freq = SDL_GetPerformanceFrequency();
     if (frameIndex >= warmupFrames())
         perf.encode.add(static_cast<float>(static_cast<double>(t1 - t0) * 1000.0 / static_cast<double>(freq)));
+
+    if (capturing)
+    {
+        cmd->waitUntilCompleted();
+        endCapture();
+    }
 
     frameIndex++;
 }
@@ -271,6 +295,8 @@ void App::waitIdle()
 
 bool App::benchmarkFrame()
 {
+    if (config.captureFrame >= 0 && frameIndex == warmupFrames() + static_cast<uint64_t>(config.captureFrame))
+        captureRequested_ = true;
     inFlight.acquire();
     submitFrame(benchmarkTexture, nullptr);
     return true;
@@ -285,7 +311,7 @@ void App::writeResults() const
 {
     const std::string path = std::string(BENCH_OUT_DIR) + "/perf.csv";
     const auto pathStr = path.c_str();
-    const auto labelStr = config.mode.c_str();
+    const auto labelStr = config.label.c_str();
     perf.gpu.writeCsv(pathStr, labelStr);
     perf.encode.writeCsv(pathStr, labelStr);
     perf.iteration.writeCsv(pathStr, labelStr);
@@ -313,4 +339,36 @@ void App::saveTexturePng(const MTL::Texture* tex, const std::string& path) const
     }
     stbi_write_png(path.c_str(), static_cast<int>(w), static_cast<int>(h), 4, bufferData, static_cast<int>(bytesPerRow));
     buffer->release();
+}
+
+bool App::beginCapture()
+{
+    MTL::CaptureManager* cm = MTL::CaptureManager::sharedCaptureManager();
+    if (!cm->supportsDestination(MTL::CaptureDestinationGPUTraceDocument))
+    {
+        std::printf("GPU capture unavailable: set MTL_CAPTURE_ENABLED=1 in the run configuration.\n");
+        return false;
+    }
+
+    std::filesystem::create_directories(CAPTURE_DIR);
+    // the file must not already exist, so each capture gets a timestamped name
+    capturePath_ = std::string(CAPTURE_DIR) + "/frame_" + std::to_string(std::time(nullptr)) + ".gputrace";
+
+    MTL::CaptureDescriptor* cd = MTL::CaptureDescriptor::alloc()->init();
+    cd->setCaptureObject(ctx.commandQueue);
+    cd->setDestination(MTL::CaptureDestinationGPUTraceDocument);
+    cd->setOutputURL(NS::URL::fileURLWithPath(NS::String::string(capturePath_.c_str(), NS::UTF8StringEncoding)));
+
+    NS::Error* err = nullptr;
+    const bool ok = cm->startCapture(cd, &err);
+    cd->release();
+    if (!ok)
+        std::printf("Capture failed to start: %s\n", err ? err->localizedDescription()->utf8String() : "unknown");
+    return ok;
+}
+
+void App::endCapture()
+{
+    MTL::CaptureManager::sharedCaptureManager()->stopCapture();
+    std::printf("Saved GPU capture: %s\n", capturePath_.c_str());
 }

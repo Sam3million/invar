@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include "ClassicPath.h"
+#include "MeshletCullingPath.h"
 #include "MeshletPath.h"
 #include "shared_types.h"
 
@@ -10,8 +11,16 @@ Renderer::Renderer(MetalContext& ctx, const RenderMode renderMode, const int fra
     m_framesInFlight(framesInFlight),
     m_frameBuffers(framesInFlight),
     m_renderMode(renderMode),
-    m_renderPaths({std::make_unique<ClassicPath>(ctx), std::make_unique<MeshletPath>(ctx)})
+    m_renderPaths({
+        std::make_unique<ClassicPath>(ctx),
+        std::make_unique<MeshletPath>(ctx),
+        std::make_unique<MeshletCullingPath>(ctx)})
 {
+    for (int i = 0; i < m_renderPaths.size(); i++)
+    {
+        m_renderPaths[i]->init();
+    }
+
     MTL::DepthStencilDescriptor* depthStencilDescriptor = MTL::DepthStencilDescriptor::alloc()->init();
     depthStencilDescriptor->setDepthCompareFunction(MTL::CompareFunctionGreater);
     depthStencilDescriptor->setDepthWriteEnabled(true);
@@ -116,12 +125,19 @@ void Renderer::setScene(const Scene& scene)
     renderPath().setScene(scene, m_gpu);
 }
 
-void Renderer::encode(MTL::CommandBuffer* cmd, MTL::Texture* color, const FrameData& frame, uint32_t frameSlot)
+void Renderer::encode(MTL::CommandBuffer* cmd, const MTL::Texture* color, const FrameData& frame, const uint32_t frameSlot)
 {
     ensureDepth(static_cast<uint32_t>(color->width()), static_cast<uint32_t>(color->height()));
 
     std::memcpy(m_frameBuffers[frameSlot]->contents(), &frame, sizeof(FrameData));
-    const FrameBindings frameBindings { .frameData = m_frameBuffers[frameSlot], .frameSlot = frameSlot };
+
+    const FrameBindings frameBindings
+    {
+        .frameData = m_frameBuffers[frameSlot],
+        .frameSlot = frameSlot,
+        .frame = &frame,
+        .options = &m_options
+    };
 
     // The render path might have prepasses (eg compute culling)
     renderPath().prepare(cmd, m_gpu, frameBindings);

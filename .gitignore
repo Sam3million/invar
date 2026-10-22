@@ -7,3 +7,5 @@ xcode-build/
 bench/.venv/
 bench/plot_images
 bench/results
+bench/captures/
+*.gputrace

@@ -14,8 +14,13 @@ typedef uint32_t uint;
 #define MATERIAL_FLAG_DOUBLE_SIDED 2u
 #define MAX_TEXTURES 1024
 
-#define MESHLET_MAX_VERTS 64
-#define MESHLET_MAX_TRIS  124
+#define MESHLET_MAX_VERTS 256
+#define MESHLET_MAX_TRIS 512
+#define MESH_THREADS 128
+
+#define CULL_FRUSTUM 1u
+#define CULL_CONE 2u
+#define CULL_STATS 4u
 
 enum BufferIndex
 {
@@ -28,7 +33,9 @@ enum BufferIndex
     BufferIndexMeshlets = 6,
     BufferIndexMeshletVerts = 7,
     BufferIndexMeshletTris = 8,
-    BufferIndexWork = 9
+    BufferIndexWork = 9,
+    BufferIndexCullParams = 10,
+    BufferIndexStats = 11
 };
 
 struct FrameData
@@ -38,6 +45,14 @@ struct FrameData
     float2 viewportSize;
     float time;
     float _pad0;
+};
+
+struct CullParams {
+    float4 planes[5];     // left, right, bottom, top, near; world space, normalized: xyz = normal, w = distance
+    float4 cameraPos;     // xyz = culling camera position
+    uint   workCount;     // work items in the range being drawn
+    uint   flags;
+    uint   _pad0, _pad1;
 };
 
 struct Vertex
